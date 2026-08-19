@@ -1,0 +1,17 @@
+{
+  "5295337780": {
+    "region": "Тюмень",
+    "lat": 57.1522,
+    "lon": 65.5272,
+    "method": 16,
+    "notifications": true,
+    "step": "done"
+  },
+  "-1004427646187": {
+    "region": "Тюмень",
+    "lat": 57.1522,
+    "lon": 65.5272,
+    "timezone": "Asia/Yekaterinburg",
+    "notifications": true
+  }
+}
