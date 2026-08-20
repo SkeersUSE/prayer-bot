@@ -11,28 +11,18 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 const DATA_FILE = path.join(__dirname, 'users.json');
 let users = {};
 if (fs.existsSync(DATA_FILE)) {
-    users = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    try {
+        users = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    } catch (e) {
+        users = {};
+    }
 }
 
 function saveUsers() {
     fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2));
 }
 
-const classes = {
-    'mech': { name: 'Мечник', weapon: 'Меч', attack: 10, defense: 5, speed: 5 },
-    'strelok': { name: 'Стрелок', weapon: 'Лук', attack: 8, defense: 3, speed: 8 },
-    'vsadnik': { name: 'Всадник', weapon: 'Копьё', attack: 9, defense: 6, speed: 7 },
-    'zashchitnik': { name: 'Защитник', weapon: 'Щит и меч', attack: 6, defense: 12, speed: 4 }
-};
-
-const enemies = [
-    { name: 'Разбойник', hp: 20, attack: 4, reward: 10 },
-    { name: 'Дикий зверь', hp: 30, attack: 6, reward: 15 },
-    { name: 'Враг каравана', hp: 40, attack: 8, reward: 20 },
-    { name: 'Опытный воин', hp: 50, attack: 10, reward: 30 },
-    { name: 'Главарь шайки', hp: 70, attack: 14, reward: 50 }
-];
-
+// Список регионов
 const regions = {
     'Москва': { lat: 55.7558, lon: 37.6173 },
     'Санкт-Петербург': { lat: 59.9343, lon: 30.3351 },
@@ -44,15 +34,18 @@ const regions = {
     'Челябинск': { lat: 55.1644, lon: 61.4368 },
     'Омск': { lat: 54.9893, lon: 73.3682 },
     'Красноярск': { lat: 56.0106, lon: 92.8526 },
-    'Иркутск': { lat: 52.2864, lon: 104.2807 },
-    'Владивосток': { lat: 43.1155, lon: 131.8855 },
-    'Хабаровск': { lat: 48.4802, lon: 135.0718 },
-    'Якутск': { lat: 62.0355, lon: 129.6755 },
-    'Магадан': { lat: 59.5681, lon: 150.8085 },
-    'Калининград': { lat: 54.7104, lon: 20.4522 },
-    'Мурманск': { lat: 68.9585, lon: 33.0827 },
-    'Архангельск': { lat: 64.5399, lon: 40.5158 },
-    'Волгоград': { lat: 48.7080, lon: 44.5133 },
+    'Грозный': { lat: 43.3178, lon: 45.6981 },
+    'Махачкала': { lat: 42.9849, lon: 47.5046 },
+    'Назрань': { lat: 43.2257, lon: 44.7648 },
+    'Дербент': { lat: 42.0587, lon: 48.2908 },
+    'Каспийск': { lat: 42.8814, lon: 47.6385 },
+    'Хасавюрт': { lat: 43.2500, lon: 46.5833 },
+    'Владикавказ': { lat: 43.0246, lon: 44.6810 },
+    'Нальчик': { lat: 43.4846, lon: 43.6072 },
+    'Черкесск': { lat: 44.2233, lon: 42.0577 },
+    'Майкоп': { lat: 44.6098, lon: 40.1055 },
+    'Астрахань': { lat: 46.3497, lon: 48.0408 },
+    'Элиста': { lat: 46.3077, lon: 44.2697 },
     'Самара': { lat: 53.1959, lon: 50.1002 },
     'Нижний Новгород': { lat: 56.2965, lon: 43.9361 },
     'Ростов-на-Дону': { lat: 47.2225, lon: 39.7187 },
@@ -63,66 +56,11 @@ const regions = {
     'Саратов': { lat: 51.5331, lon: 46.0342 },
     'Томск': { lat: 56.4846, lon: 84.9480 },
     'Барнаул': { lat: 53.3481, lon: 83.7799 },
-    'Кемерово': { lat: 55.3552, lon: 86.0868 },
-    'Грозный': { lat: 43.3178, lon: 45.6981 },
-    'Махачкала': { lat: 42.9849, lon: 47.5046 },
-    'Назрань': { lat: 43.2257, lon: 44.7648 },
-    'Черкесск': { lat: 44.2233, lon: 42.0577 },
-    'Нальчик': { lat: 43.4846, lon: 43.6072 },
-    'Владикавказ': { lat: 43.0246, lon: 44.6810 },
-    'Симферополь': { lat: 44.9521, lon: 34.1024 },
-    'Севастополь': { lat: 44.6167, lon: 33.5254 },
     'Ижевск': { lat: 56.8498, lon: 53.2045 },
     'Ульяновск': { lat: 54.3142, lon: 48.4031 },
     'Оренбург': { lat: 51.7727, lon: 55.0988 },
     'Киров': { lat: 58.6035, lon: 49.6667 },
-    'Йошкар-Ола': { lat: 56.6316, lon: 47.8864 },
-    'Саранск': { lat: 54.1874, lon: 45.1839 },
-    'Пенза': { lat: 53.1959, lon: 45.0000 },
-    'Тамбов': { lat: 52.7213, lon: 41.4438 },
-    'Липецк': { lat: 52.6088, lon: 39.5992 },
-    'Белгород': { lat: 50.5977, lon: 36.5858 },
-    'Курск': { lat: 51.7304, lon: 36.1927 },
-    'Брянск': { lat: 53.2436, lon: 34.3648 },
-    'Смоленск': { lat: 54.7826, lon: 32.0451 },
-    'Тверь': { lat: 56.8587, lon: 35.9176 },
-    'Калуга': { lat: 54.5138, lon: 36.2613 },
-    'Тула': { lat: 54.1930, lon: 37.6175 },
-    'Рязань': { lat: 54.6292, lon: 39.7358 },
-    'Владимир': { lat: 56.1291, lon: 40.4070 },
-    'Иваново': { lat: 56.9994, lon: 40.9728 },
-    'Кострома': { lat: 57.7679, lon: 40.9269 },
-    'Ярославль': { lat: 57.6261, lon: 39.8845 },
-    'Вологда': { lat: 59.2205, lon: 39.8915 },
-    'Петрозаводск': { lat: 61.7849, lon: 34.3469 },
-    'Сыктывкар': { lat: 61.6688, lon: 50.8365 },
-    'Нарьян-Мар': { lat: 67.6381, lon: 53.0069 },
-    'Салехард': { lat: 66.5300, lon: 66.6139 },
-    'Ханты-Мансийск': { lat: 61.0025, lon: 69.0189 },
-    'Анадырь': { lat: 64.7337, lon: 177.4968 },
-    'Петропавловск-Камчатский': { lat: 53.0166, lon: 158.6508 },
-    'Южно-Сахалинск': { lat: 46.9598, lon: 142.7317 },
-    'Биробиджан': { lat: 48.7920, lon: 132.9240 },
-    'Благовещенск': { lat: 50.2796, lon: 127.5405 },
-    'Чита': { lat: 52.0340, lon: 113.4994 },
-    'Улан-Удэ': { lat: 51.8348, lon: 107.5843 },
-    'Горно-Алтайск': { lat: 51.9605, lon: 85.9189 },
-    'Абакан': { lat: 53.7223, lon: 91.4437 },
-    'Кызыл': { lat: 51.7191, lon: 94.4375 },
-    'Элиста': { lat: 46.3077, lon: 44.2697 },
-    'Астрахань': { lat: 46.3497, lon: 48.0408 },
-    'Майкоп': { lat: 44.6098, lon: 40.1055 },
-    'Чебоксары': { lat: 56.1462, lon: 47.2501 },
-    'Дербент': { lat: 42.0587, lon: 48.2908 },
-    'Каспийск': { lat: 42.8814, lon: 47.6385 },
-    'Хасавюрт': { lat: 43.2500, lon: 46.5833 },
-    'Буйнакск': { lat: 42.8200, lon: 47.1200 },
-    'Избербаш': { lat: 42.5667, lon: 47.8667 },
-    'Кизляр': { lat: 43.8500, lon: 46.7167 },
-    'Шали': { lat: 43.1500, lon: 45.9000 },
-    'Урус-Мартан': { lat: 43.1333, lon: 45.5333 },
-    'Гудермес': { lat: 43.3500, lon: 46.1000 },
-    'Аргун': { lat: 43.3000, lon: 45.8667 }
+    'Чебоксары': { lat: 56.1462, lon: 47.2501 }
 };
 
 const methods = {
@@ -131,11 +69,19 @@ const methods = {
     '3': 'MWL (Всемирная лига)',
     '2': 'ISNA (Сев. Америка)',
     '4': 'Umm Al-Qura (Мекка)',
-    '5': 'Египет',
-    '13': 'Турция (Diyanet)',
-    '15': 'Moonsighting'
+    '13': 'Турция (Diyanet)'
 };
 
+// Названия намазов
+const prayerNames = {
+    'fajr': 'Фаджр',
+    'dhuhr': 'Зухр',
+    'asr': 'Аср',
+    'maghrib': 'Магриб',
+    'isha': 'Иша'
+};
+
+// Получение времени намаза
 async function getPrayerTimes(lat, lon, method = 16, date = new Date()) {
     const day = date.getDate();
     const month = date.getMonth() + 1;
@@ -149,24 +95,69 @@ async function getPrayerTimes(lat, lon, method = 16, date = new Date()) {
     }
 }
 
-// Планировщик с проверкой часового пояса
+// Расчёт киблы
+function calculateQibla(lat, lon) {
+    const kaabaLat = 21.4225;
+    const kaabaLon = 39.8262;
+    
+    const latRad = lat * Math.PI / 180;
+    const lonRad = lon * Math.PI / 180;
+    const kaabaLatRad = kaabaLat * Math.PI / 180;
+    const kaabaLonRad = kaabaLon * Math.PI / 180;
+    
+    const deltaLon = kaabaLonRad - lonRad;
+    
+    const y = Math.sin(deltaLon);
+    const x = Math.cos(latRad) * Math.tan(kaabaLatRad) - Math.sin(latRad) * Math.cos(deltaLon);
+    
+    let qibla = Math.atan2(y, x) * 180 / Math.PI;
+    if (qibla < 0) qibla += 360;
+    
+    return Math.round(qibla);
+}
+
+// Компас
+function getCompassDirection(degrees) {
+    const directions = ['Север', 'Северо-Восток', 'Восток', 'Юго-Восток', 'Юг', 'Юго-Запад', 'Запад', 'Северо-Запад'];
+    const index = Math.round(degrees / 45) % 8;
+    return directions[index];
+}
+
+// Сброс статистики ежедневно
+function resetDailyStats() {
+    Object.keys(users).forEach(chatId => {
+        const user = users[chatId];
+        if (user && user.stats) {
+            const today = new Date().toDateString();
+            if (user.stats.lastReset !== today) {
+                user.stats.prayersToday = 0;
+                user.stats.lastReset = today;
+            }
+        }
+    });
+    saveUsers();
+}
+
+// Запускаем сброс каждый час
+setInterval(resetDailyStats, 60 * 60 * 1000);
+resetDailyStats();
+
+// Планировщик намазов
 function setupScheduler(chatId) {
     const user = users[chatId];
     if (!user) return;
     
-    // Получаем время намаза
     getPrayerTimes(user.lat, user.lon, user.method).then(timings => {
         if (!timings) return;
         
         const prayers = [
-            { name: 'Фаджр', time: timings.Fajr },
-            { name: 'Зухр', time: timings.Dhuhr },
-            { name: 'Аср', time: timings.Asr },
-            { name: 'Магриб', time: timings.Maghrib },
-            { name: 'Иша', time: timings.Isha }
+            { key: 'fajr', name: 'Фаджр', time: timings.Fajr },
+            { key: 'dhuhr', name: 'Зухр', time: timings.Dhuhr },
+            { key: 'asr', name: 'Аср', time: timings.Asr },
+            { key: 'maghrib', name: 'Магриб', time: timings.Maghrib },
+            { key: 'isha', name: 'Иша', time: timings.Isha }
         ];
         
-        // Удаляем старые расписания
         if (user.scheduledJobs) {
             user.scheduledJobs.forEach(job => job.cancel());
         }
@@ -174,14 +165,16 @@ function setupScheduler(chatId) {
         
         prayers.forEach(prayer => {
             const [hours, minutes] = prayer.time.split(':').map(Number);
-            
-            // Планируем на каждый день
             const job = schedule.scheduleJob({ hour: hours, minute: minutes }, () => {
                 if (users[chatId] && users[chatId].notifications) {
-                    bot.sendMessage(chatId, 'Время намаза: ' + prayer.name + ' (' + prayer.time + ')');
+                    const keyboard = {
+                        inline_keyboard: [[
+                            { text: 'Отметить ' + prayer.name, callback_data: 'mark_' + prayer.key }
+                        ]]
+                    };
+                    bot.sendMessage(chatId, 'Время намаза: ' + prayer.name + ' (' + prayer.time + ')', { reply_markup: keyboard });
                 }
             });
-            
             user.scheduledJobs.push(job);
         });
         
@@ -198,427 +191,275 @@ setInterval(() => {
     });
 }, 12 * 60 * 60 * 1000);
 
-function collectFarm(chatId) {
-    const user = users[chatId];
-    if (!user?.pet) return;
-    const pet = user.pet;
-    const now = Date.now();
-    if (!pet.lastFarmCollect) {
-        pet.lastFarmCollect = now;
-        pet.coins += 3;
-        saveUsers();
-        return;
-    }
-    const timeDiff = now - pet.lastFarmCollect;
-    const collectsAvailable = Math.floor(timeDiff / (10 * 60 * 1000));
-    if (collectsAvailable >= 1) {
-        const coinsGain = collectsAvailable * 3;
-        pet.coins += coinsGain;
-        pet.lastFarmCollect = now;
-        saveUsers();
-        bot.sendMessage(chatId, 'Ферма принесла ' + coinsGain + ' монет!');
-    } else {
-        const nextCollect = 10 * 60 * 1000 - timeDiff;
-        const minutes = Math.ceil(nextCollect / 60000);
-        bot.sendMessage(chatId, 'Монеты ещё не выросли. Подождите ' + minutes + ' мин.');
-    }
-}
-
-function canTrain(chatId) {
-    const user = users[chatId];
-    if (!user?.pet) return { can: false, reason: 'Сначала создайте воина: /pet' };
-    const pet = user.pet;
-    const now = Date.now();
-    if (!pet.trainResetTime) {
-        pet.trainResetTime = now;
-        pet.trainCount = 0;
-        saveUsers();
-    }
-    const timeDiff = now - pet.trainResetTime;
-    if (timeDiff >= 12 * 60 * 60 * 1000) {
-        pet.trainResetTime = now;
-        pet.trainCount = 0;
-        saveUsers();
-    }
-    if (pet.trainCount >= 16) {
-        const nextReset = 12 * 60 * 60 * 1000 - timeDiff;
-        const hours = Math.floor(nextReset / 3600000);
-        const minutes = Math.ceil((nextReset % 3600000) / 60000);
-        return { can: false, reason: 'Лимит тренировок исчерпан! Следующая через ' + hours + ' ч ' + minutes + ' мин.' };
-    }
-    return { can: true };
+// Главное меню
+function showMenu(chatId) {
+    const keyboard = [
+        ['Сегодня', 'Завтра'],
+        ['Отметить намаз', 'Статистика'],
+        ['Кибла', 'Настройки']
+    ];
+    bot.sendMessage(chatId, 'Главное меню:', {
+        reply_markup: { keyboard, resize_keyboard: true }
+    });
 }
 
 // /start
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
+    
+    if (users[chatId] && users[chatId].step === 'done') {
+        return showMenu(chatId);
+    }
+    
+    users[chatId] = {
+        step: 'region',
+        notifications: true,
+        method: 16,
+        stats: {
+            prayersToday: 0,
+            totalPrayers: 0,
+            lastReset: new Date().toDateString()
+        }
+    };
+    saveUsers();
+    
     let keyboard = [];
     const regionNames = Object.keys(regions);
     for (let i = 0; i < regionNames.length; i += 2) {
         keyboard.push(regionNames.slice(i, i + 2));
     }
-    bot.sendMessage(chatId, 'Ассаляму алейкум!\n\nВыберите ваш регион для намаза:', {
+    
+    bot.sendMessage(chatId, 'Ассаляму алейкум!\n\nВыберите ваш регион:', {
         reply_markup: { keyboard, resize_keyboard: true, one_time_keyboard: true }
     });
 });
 
-// /pet
-bot.onText(/\/pet/, (msg) => {
+// /menu
+bot.onText(/\/menu/, (msg) => {
+    showMenu(msg.chat.id);
+});
+
+// /today
+bot.onText(/\/today|Сегодня/, async (msg) => {
     const chatId = msg.chat.id;
     const user = users[chatId];
-    if (!user || !user.step || user.step !== 'done') {
-        return bot.sendMessage(chatId, 'Сначала настройте намаз через /start');
+    if (!user || !user.lat) return bot.sendMessage(chatId, 'Сначала /start');
+    
+    const timings = await getPrayerTimes(user.lat, user.lon, user.method);
+    if (timings) {
+        bot.sendMessage(chatId, 'Сегодня:\n\nФаджр: ' + timings.Fajr + '\nЗухр: ' + timings.Dhuhr + '\nАср: ' + timings.Asr + '\nМагриб: ' + timings.Maghrib + '\nИша: ' + timings.Isha);
     }
-    if (user.pet) {
-        return showPet(chatId);
+});
+
+// /tomorrow
+bot.onText(/\/tomorrow|Завтра/, async (msg) => {
+    const chatId = msg.chat.id;
+    const user = users[chatId];
+    if (!user || !user.lat) return bot.sendMessage(chatId, 'Сначала /start');
+    
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const timings = await getPrayerTimes(user.lat, user.lon, user.method, tomorrow);
+    if (timings) {
+        bot.sendMessage(chatId, 'Завтра:\n\nФаджр: ' + timings.Fajr + '\nЗухр: ' + timings.Dhuhr + '\nАср: ' + timings.Asr + '\nМагриб: ' + timings.Maghrib + '\nИша: ' + timings.Isha);
     }
+});
+
+// Отметка намаза
+bot.onText(/\/mark|Отметить намаз/, (msg) => {
+    const chatId = msg.chat.id;
+    const user = users[chatId];
+    if (!user || !user.lat) return bot.sendMessage(chatId, 'Сначала /start');
+    
     let keyboard = [];
-    Object.entries(classes).forEach(([key, cls]) => {
-        keyboard.push([cls.name + ' — ' + cls.weapon + ' (Атака: ' + cls.attack + ', Защита: ' + cls.defense + ')']);
+    Object.entries(prayerNames).forEach(([key, name]) => {
+        keyboard.push([{ text: name, callback_data: 'mark_' + key }]);
     });
-    bot.sendMessage(chatId, 'Выберите класс вашего воина:\n\nКласс изменить нельзя!', {
-        reply_markup: { keyboard, resize_keyboard: true, one_time_keyboard: true }
+    
+    bot.sendMessage(chatId, 'Какой намаз отметить?', {
+        reply_markup: { inline_keyboard: keyboard }
     });
-    user.creatingPet = true;
-    saveUsers();
 });
 
-function showPet(chatId) {
-    const user = users[chatId];
-    if (!user.pet) return;
-    const pet = user.pet;
-    let message = 'Ваш воин:\n\n';
-    message += 'Имя: ' + pet.name + '\n';
-    message += 'Класс: ' + pet.className + '\n';
-    message += 'Уровень: ' + pet.level + '\n';
-    message += 'Опыт: ' + pet.exp + '/' + (pet.level * 100) + '\n';
-    message += 'Здоровье: ' + pet.hp + '/' + pet.maxHp + '\n';
-    message += 'Атака: ' + pet.attack + '\n';
-    message += 'Защита: ' + pet.defense + '\n';
-    message += 'Монеты: ' + pet.coins + '\n';
-    message += 'Тренировки: ' + (pet.trainCount || 0) + '/16\n\n';
-    message += '/battle — сражаться с врагом\n/pvp @username — битва с игроком\n/train — тренироваться\n/heal — лечиться (5 монет)\n/farm — собрать монеты\n/rename — переименовать\n/setusername @username — установить username';
-    bot.sendMessage(chatId, message);
-}
-
-// /farm
-bot.onText(/\/farm/, (msg) => {
-    collectFarm(msg.chat.id);
-});
-
-// /battle
-bot.onText(/\/battle/, (msg) => {
-    const chatId = msg.chat.id;
-    const user = users[chatId];
-    if (!user?.pet) return bot.sendMessage(chatId, 'Сначала создайте воина: /pet');
-    const pet = user.pet;
-    const enemy = enemies[Math.min(pet.level - 1, enemies.length - 1)];
-    let petHp = pet.hp;
-    let enemyHp = enemy.hp;
-    let battleLog = 'Битва с ' + enemy.name + '!\n\n';
+// Обработка callback
+bot.on('callback_query', (query) => {
+    const chatId = query.message.chat.id;
+    const data = query.data;
     
-    while (petHp > 0 && enemyHp > 0) {
-        const petDamage = Math.max(1, pet.attack - 2 + Math.floor(Math.random() * 5));
-        enemyHp -= petDamage;
-        battleLog += 'Вы нанесли ' + petDamage + ' урона. У врага ' + Math.max(0, enemyHp) + ' HP\n';
-        if (enemyHp <= 0) break;
-        const enemyDamage = Math.max(1, enemy.attack - Math.floor(pet.defense / 2) + Math.floor(Math.random() * 3));
-        petHp -= enemyDamage;
-        battleLog += enemy.name + ' нанёс ' + enemyDamage + ' урона. У вас ' + Math.max(0, petHp) + ' HP\n';
-    }
-    
-    if (petHp <= 0) {
-        pet.hp = Math.floor(pet.maxHp / 2);
+    if (data.startsWith('mark_')) {
+        const prayerKey = data.replace('mark_', '');
+        const prayerName = prayerNames[prayerKey];
+        const user = users[chatId];
+        
+        if (!user) return;
+        
+        if (!user.stats) {
+            user.stats = {
+                prayersToday: 0,
+                totalPrayers: 0,
+                lastReset: new Date().toDateString()
+            };
+        }
+        
+        // Проверяем, не отмечен ли уже
+        const today = new Date().toDateString();
+        if (!user.stats.markedPrayers) {
+            user.stats.markedPrayers = {};
+        }
+        if (!user.stats.markedPrayers[today]) {
+            user.stats.markedPrayers[today] = [];
+        }
+        
+        if (user.stats.markedPrayers[today].includes(prayerKey)) {
+            bot.answerCallbackQuery(query.id, { text: prayerName + ' уже отмечен!' });
+            return;
+        }
+        
+        user.stats.markedPrayers[today].push(prayerKey);
+        user.stats.prayersToday++;
+        user.stats.totalPrayers++;
         saveUsers();
-        return bot.sendMessage(chatId, battleLog + '\nВы проиграли! Воин восстановил половину здоровья.');
+        
+        bot.answerCallbackQuery(query.id, { text: prayerName + ' отмечен!' });
+        bot.sendMessage(chatId, prayerName + ' отмечен!\nСегодня: ' + user.stats.prayersToday + '/5');
     }
     
-    const expGain = enemy.reward;
-    const coinsGain = enemy.reward;
-    pet.exp += expGain;
-    pet.coins += coinsGain;
-    pet.hp = petHp;
-    
-    if (pet.exp >= pet.level * 100) {
-        pet.exp -= pet.level * 100;
-        pet.level++;
-        pet.maxHp += 10;
-        pet.hp = pet.maxHp;
-        pet.attack += 2;
-        pet.defense += 1;
-        pet.coins += 10;
-        battleLog += '\nПовышен уровень! Теперь ' + pet.level + ' уровень!\nБонус: +10 монет!\n';
-    }
-    saveUsers();
-    bot.sendMessage(chatId, battleLog + '\nПобеда!\nОпыт: +' + expGain + '\nМонеты: +' + coinsGain);
+    bot.answerCallbackQuery(query.id);
 });
 
-// /setusername
-bot.onText(/\/setusername(?:\s+@?([a-zA-Z0-9_]+))?/, (msg, match) => {
+// /stats
+bot.onText(/\/stats|Статистика/, (msg) => {
     const chatId = msg.chat.id;
     const user = users[chatId];
     if (!user) return bot.sendMessage(chatId, 'Сначала /start');
     
-    const username = match[1];
-    if (!username) {
-        return bot.sendMessage(chatId, 'Используйте: /setusername @ваш_username');
-    }
-    
-    user.username = username;
-    saveUsers();
-    bot.sendMessage(chatId, 'Username установлен: @' + username);
-});
-
-// /pvp — только по @username
-bot.onText(/\/pvp(?:\s+@?([a-zA-Z0-9_]+))?/, (msg, match) => {
-    const chatId = msg.chat.id;
-    const user = users[chatId];
-    if (!user?.pet) return bot.sendMessage(chatId, 'Сначала создайте воина: /pet');
-    
-    const targetUsername = match[1];
-    
-    if (!targetUsername) {
-        return bot.sendMessage(chatId, 'Используйте: /pvp @username\n\nУзнать свой username: /status');
-    }
-    
-    const targetEntry = Object.entries(users).find(([id, u]) => 
-        u.username === targetUsername && u.pet && id !== String(chatId)
-    );
-    
-    if (!targetEntry) {
-        return bot.sendMessage(chatId, 'Игрок @' + targetUsername + ' не найден или у него нет воина.');
-    }
-    
-    startPvpBattle(chatId, targetEntry[0]);
-});
-
-function startPvpBattle(attackerId, defenderId) {
-    const attacker = users[attackerId];
-    const defender = users[defenderId];
-    
-    if (!attacker?.pet || !defender?.pet) return;
-    
-    const myPet = attacker.pet;
-    const enemyPet = defender.pet;
-    
-    let myHp = myPet.hp;
-    let enemyHp = enemyPet.hp;
-    let battleLog = 'PvP битва: ' + myPet.name + ' vs ' + enemyPet.name + '!\n\n';
-    
-    while (myHp > 0 && enemyHp > 0) {
-        const myDamage = Math.max(1, myPet.attack - Math.floor(enemyPet.defense / 2) + Math.floor(Math.random() * 5));
-        enemyHp -= myDamage;
-        battleLog += 'Вы нанесли ' + myDamage + ' урона. У ' + enemyPet.name + ' ' + Math.max(0, enemyHp) + ' HP\n';
-        if (enemyHp <= 0) break;
-        const enemyDamage = Math.max(1, enemyPet.attack - Math.floor(myPet.defense / 2) + Math.floor(Math.random() * 5));
-        myHp -= enemyDamage;
-        battleLog += enemyPet.name + ' нанёс ' + enemyDamage + ' урона. У вас ' + Math.max(0, myHp) + ' HP\n';
-    }
-    
-    if (myHp <= 0) {
-        myPet.hp = Math.floor(myPet.maxHp / 2);
+    if (!user.stats) {
+        user.stats = {
+            prayersToday: 0,
+            totalPrayers: 0,
+            lastReset: new Date().toDateString()
+        };
         saveUsers();
-        bot.sendMessage(attackerId, battleLog + '\nВы проиграли!');
-        bot.sendMessage(defenderId, 'Вас атаковал ' + myPet.name + '! Вы победили!');
-        return;
     }
     
-    myPet.hp = myHp;
-    const expGain = 15 + enemyPet.level * 5;
-    const coinsGain = 10 + enemyPet.level * 3;
-    myPet.exp += expGain;
-    myPet.coins += coinsGain;
+    const today = new Date().toDateString();
+    const markedToday = user.stats.markedPrayers?.[today] || [];
     
-    if (myPet.exp >= myPet.level * 100) {
-        myPet.exp -= myPet.level * 100;
-        myPet.level++;
-        myPet.maxHp += 10;
-        myPet.hp = myPet.maxHp;
-        myPet.attack += 2;
-        myPet.defense += 1;
-        myPet.coins += 10;
-        battleLog += '\nПовышен уровень! Теперь ' + myPet.level + ' уровень!\nБонус: +10 монет!\n';
-    }
+    let message = 'Статистика намазов:\n\n';
+    message += 'Сегодня: ' + user.stats.prayersToday + '/5\n';
+    message += 'Всего: ' + user.stats.totalPrayers + '\n\n';
+    message += 'Отмечены сегодня:\n';
     
-    saveUsers();
-    bot.sendMessage(defenderId, 'Вас победил ' + myPet.name + '!');
-    bot.sendMessage(attackerId, battleLog + '\nПобеда!\nОпыт: +' + expGain + '\nМонеты: +' + coinsGain);
-}
+    Object.entries(prayerNames).forEach(([key, name]) => {
+        const marked = markedToday.includes(key) ? '✅' : '❌';
+        message += marked + ' ' + name + '\n';
+    });
+    
+    bot.sendMessage(chatId, message);
+});
 
-// /train
-bot.onText(/\/train/, (msg) => {
+// /qibla
+bot.onText(/\/qibla|Кибла/, (msg) => {
+    const chatId = msg.chat.id;
+    bot.sendMessage(chatId, 'Отправьте вашу геолокацию (вложение Location), чтобы узнать направление на Каабу.');
+});
+
+// Обработка геолокации
+bot.on('location', (msg) => {
+    const chatId = msg.chat.id;
+    const lat = msg.location.latitude;
+    const lon = msg.location.longitude;
+    
+    const qiblaDegrees = calculateQibla(lat, lon);
+    const direction = getCompassDirection(qiblaDegrees);
+    
+    bot.sendMessage(chatId, 'Направление на Каабу:\n\n' + qiblaDegrees + '° (' + direction + ')\n\nОт севера по часовой стрелке.');
+});
+
+// /settings
+bot.onText(/\/settings|Настройки/, (msg) => {
     const chatId = msg.chat.id;
     const user = users[chatId];
-    if (!user?.pet) return bot.sendMessage(chatId, 'Сначала создайте воина: /pet');
+    if (!user) return bot.sendMessage(chatId, 'Сначала /start');
     
-    const trainCheck = canTrain(chatId);
-    if (!trainCheck.can) return bot.sendMessage(chatId, trainCheck.reason);
+    let keyboard = [];
+    Object.entries(methods).forEach(([key, name]) => {
+        keyboard.push([{ text: name + ' (' + key + ')', callback_data: 'method_' + key }]);
+    });
     
-    const pet = user.pet;
-    const expGain = 5 + Math.floor(Math.random() * 5);
-    pet.exp += expGain;
-    pet.trainCount = (pet.trainCount || 0) + 1;
+    bot.sendMessage(chatId, 'Метод: ' + (methods[user.method] || user.method) + '\n\nВыберите метод расчёта:', {
+        reply_markup: { inline_keyboard: keyboard }
+    });
+});
+
+// Обработка выбора метода
+bot.on('callback_query', (query) => {
+    const chatId = query.message.chat.id;
+    const data = query.data;
     
-    if (pet.exp >= pet.level * 100) {
-        pet.exp -= pet.level * 100;
-        pet.level++;
-        pet.maxHp += 10;
-        pet.hp = pet.maxHp;
-        pet.attack += 2;
-        pet.defense += 1;
-        pet.coins += 10;
+    if (data.startsWith('method_')) {
+        const methodKey = data.replace('method_', '');
+        const user = users[chatId];
+        if (!user) return;
+        
+        user.method = parseInt(methodKey);
         saveUsers();
-        return bot.sendMessage(chatId, 'Тренировка! Опыт: +' + expGain + '\n\nПовышен уровень! Теперь ' + pet.level + ' уровень!\nБонус: +10 монет!');
+        
+        bot.answerCallbackQuery(query.id, { text: 'Метод обновлён!' });
+        bot.sendMessage(chatId, 'Метод: ' + methods[methodKey]);
+        
+        setupScheduler(chatId);
     }
-    
-    saveUsers();
-    bot.sendMessage(chatId, 'Тренировка! Опыт: +' + expGain + '\nВсего: ' + pet.exp + '/' + (pet.level * 100) + '\nТренировки: ' + pet.trainCount + '/16');
 });
 
-// /heal
-bot.onText(/\/heal/, (msg) => {
-    const chatId = msg.chat.id;
-    const user = users[chatId];
-    if (!user?.pet) return bot.sendMessage(chatId, 'Сначала создайте воина: /pet');
-    const pet = user.pet;
-    if (pet.coins < 5) return bot.sendMessage(chatId, 'Недостаточно монет! Нужно 5 монет.');
-    pet.coins -= 5;
-    pet.hp = pet.maxHp;
-    saveUsers();
-    bot.sendMessage(chatId, 'Воин вылечен! Здоровье: ' + pet.hp + '/' + pet.maxHp);
-});
-
-// /rename
-bot.onText(/\/rename/, (msg) => {
-    const chatId = msg.chat.id;
-    const user = users[chatId];
-    if (!user?.pet) return bot.sendMessage(chatId, 'Сначала создайте воина: /pet');
-    user.renamingPet = true;
-    saveUsers();
-    bot.sendMessage(chatId, 'Введите новое имя:');
-});
-
-// Обработка сообщений
+// Обработка сообщений (выбор региона и метода)
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
     if (!text || text.startsWith('/')) return;
+    
     const user = users[chatId];
     
-    if (regions[text] && !user?.step) {
-        users[chatId] = {
-            region: text,
-            lat: regions[text].lat,
-            lon: regions[text].lon,
-            method: 16,
-            notifications: true,
-            step: 'method'
-        };
+    // Выбор региона
+    if (user?.step === 'region' && regions[text]) {
+        user.region = text;
+        user.lat = regions[text].lat;
+        user.lon = regions[text].lon;
+        user.step = 'method';
         saveUsers();
+        
         let methodKeyboard = [];
         Object.entries(methods).forEach(([key, name]) => {
             methodKeyboard.push([name + ' (' + key + ')']);
         });
-        bot.sendMessage(chatId, 'Выберите метод расчёта:', {
+        
+        bot.sendMessage(chatId, 'Регион: ' + text + '\n\nВыберите метод расчёта:', {
             reply_markup: { keyboard: methodKeyboard, resize_keyboard: true, one_time_keyboard: true }
         });
         return;
     }
     
+    // Выбор метода
     if (user?.step === 'method') {
         const methodMatch = Object.entries(methods).find(([key, name]) => text.startsWith(name));
         if (methodMatch) {
             user.method = parseInt(methodMatch[0]);
             user.step = 'done';
             saveUsers();
-            bot.sendMessage(chatId, 'Настройка завершена! Пока ждёшь Намаз, можешь создать своего питомца: /pet', {
+            
+            bot.sendMessage(chatId, 'Настройка завершена!', {
                 reply_markup: { remove_keyboard: true }
             });
+            
             const timings = await getPrayerTimes(user.lat, user.lon, user.method);
             if (timings) {
-                bot.sendMessage(chatId, 'Сегодня:\nФаджр: ' + timings.Fajr + '\nЗухр: ' + timings.Dhuhr + '\nАср: ' + timings.Asr + '\nМагриб: ' + timings.Maghrib + '\nИша: ' + timings.Isha);
+                bot.sendMessage(chatId, 'Сегодня:\n\nФаджр: ' + timings.Fajr + '\nЗухр: ' + timings.Dhuhr + '\nАср: ' + timings.Asr + '\nМагриб: ' + timings.Maghrib + '\nИша: ' + timings.Isha);
             }
+            
             setupScheduler(chatId);
+            showMenu(chatId);
         }
         return;
-    }
-    
-    if (user?.creatingPet) {
-        const classMatch = Object.entries(classes).find(([key, cls]) => text.startsWith(cls.name));
-        if (classMatch) {
-            const [classKey, cls] = classMatch;
-            user.creatingPet = false;
-            user.creatingPetName = true;
-            user.petClass = classKey;
-            saveUsers();
-            bot.sendMessage(chatId, 'Отличный выбор! Теперь дайте имя воину:', {
-                reply_markup: { remove_keyboard: true }
-            });
-        }
-        return;
-    }
-    
-    if (user?.creatingPetName) {
-        user.pet = {
-            name: text,
-            className: classes[user.petClass].name,
-            classKey: user.petClass,
-            level: 1,
-            exp: 0,
-            hp: 50 + classes[user.petClass].defense * 5,
-            maxHp: 50 + classes[user.petClass].defense * 5,
-            attack: classes[user.petClass].attack,
-            defense: classes[user.petClass].defense,
-            speed: classes[user.petClass].speed,
-            coins: 0,
-            trainCount: 0,
-            trainResetTime: Date.now(),
-            lastFarmCollect: null
-        };
-        user.creatingPetName = false;
-        saveUsers();
-        bot.sendMessage(chatId, 'Воин создан!');
-        showPet(chatId);
-        return;
-    }
-    
-    if (user?.renamingPet && user.pet) {
-        user.pet.name = text;
-        user.renamingPet = false;
-        saveUsers();
-        bot.sendMessage(chatId, 'Воин переименован в ' + text + '!');
-    }
-});
-
-// /status
-bot.onText(/\/status/, (msg) => {
-    const chatId = msg.chat.id;
-    const user = users[chatId];
-    if (!user) return bot.sendMessage(chatId, 'Сначала /start');
-    bot.sendMessage(chatId, 'Регион: ' + user.region + '\nМетод: ' + (methods[user.method] || user.method) + '\nУведомления: ' + (user.notifications ? 'включены' : 'выключены') + (user.pet ? '\nВоин: ' + user.pet.name : '') + (user.username ? '\nUsername: @' + user.username : '\nUsername не установлен'));
-});
-
-// /today
-bot.onText(/\/today/, async (msg) => {
-    const chatId = msg.chat.id;
-    const user = users[chatId];
-    if (!user) return bot.sendMessage(chatId, 'Сначала /start');
-    const timings = await getPrayerTimes(user.lat, user.lon, user.method);
-    if (timings) {
-        bot.sendMessage(chatId, 'Сегодня:\nФаджр: ' + timings.Fajr + '\nЗухр: ' + timings.Dhuhr + '\nАср: ' + timings.Asr + '\nМагриб: ' + timings.Maghrib + '\nИша: ' + timings.Isha);
-    }
-});
-
-// /tomorrow
-bot.onText(/\/tomorrow/, async (msg) => {
-    const chatId = msg.chat.id;
-    const user = users[chatId];
-    if (!user) return bot.sendMessage(chatId, 'Сначала /start');
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const timings = await getPrayerTimes(user.lat, user.lon, user.method, tomorrow);
-    if (timings) {
-        bot.sendMessage(chatId, 'Завтра:\nФаджр: ' + timings.Fajr + '\nЗухр: ' + timings.Dhuhr + '\nАср: ' + timings.Asr + '\nМагриб: ' + timings.Maghrib + '\nИша: ' + timings.Isha);
     }
 });
 
@@ -632,7 +473,8 @@ bot.onText(/\/off/, (msg) => {
     }
 });
 
-// /onbot.onText(/\/on/, (msg) => {
+// /on
+bot.onText(/\/on/, (msg) => {
     const chatId = msg.chat.id;
     if (users[chatId]) {
         users[chatId].notifications = true;
@@ -641,6 +483,7 @@ bot.onText(/\/off/, (msg) => {
     }
 });
 
+// Запуск планировщиков при старте
 Object.keys(users).forEach(chatId => {
     if (users[chatId] && users[chatId].step === 'done') {
         setupScheduler(chatId);
