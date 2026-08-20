@@ -3,8 +3,9 @@ const axios = require('axios');
 const schedule = require('node-schedule');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 
-const TOKEN = '8918396680:AAHLsrtA0p-lFd5xHzr5h1FSwa190dQFrwk';
+const TOKEN = process.env.TOKEN || '8918396680:AAHLsrtA0p-lFd5xHzr5h1FSwa190dQFrwk';
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 const DATA_FILE = path.join(__dirname, 'users.json');
@@ -60,7 +61,6 @@ const methods = {
     '15': 'Moonsighting'
 };
 
-// Получение времени намаза с ханафитской школой (school=1)
 async function getPrayerTimes(lat, lon, method = 16, date = new Date()) {
     const day = date.getDate();
     const month = date.getMonth() + 1;
@@ -96,7 +96,6 @@ bot.on('message', async (msg) => {
     const text = msg.text;
     if (text === '/start' || !text) return;
     
-    // Выбор региона
     if (regions[text] && (!users[chatId] || users[chatId].step !== 'method')) {
         const region = regions[text];
         users[chatId] = {
@@ -120,7 +119,6 @@ bot.on('message', async (msg) => {
         return;
     }
     
-    // Выбор метода
     if (users[chatId] && users[chatId].step === 'method') {
         const methodMatch = Object.entries(methods).find(([key, name]) => text.startsWith(name));
         if (methodMatch) {
@@ -222,7 +220,6 @@ bot.onText(/\/on/, (msg) => {
     }
 });
 
-// Планировщик
 function setupScheduler(chatId) {
     const user = users[chatId];
     if (!user) return;
@@ -249,9 +246,18 @@ function setupScheduler(chatId) {
     });
 }
 
-// Запуск планировщиков
 Object.keys(users).forEach(chatId => setupScheduler(chatId));
+
+// HTTP-сервер для Render и UptimeRobot
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is running!');
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log('HTTP сервер запущен на порту ' + PORT);
+});
 
 console.log('Бот запущен!');
 console.log('Регионов:', Object.keys(regions).length);
-console.log('Методов:', Object.keys(methods).length);
