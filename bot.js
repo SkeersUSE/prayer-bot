@@ -229,11 +229,16 @@ setInterval(() => {
     });
 }, 12 * 60 * 60 * 1000);
 
+// Проверка, настроен ли пользователь
+function isConfigured(chatId) {
+    return users[chatId] && users[chatId].step === 'done' && users[chatId].lat;
+}
+
 // /start
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     
-    if (users[chatId]?.step === 'done') {
+    if (isConfigured(chatId)) {
         return bot.sendMessage(chatId, 'Вы уже настроены! Используйте /help для списка команд.');
     }
     
@@ -258,7 +263,6 @@ bot.onText(/\/start/, (msg) => {
 
 // /help
 bot.onText(/\/help/, (msg) => {
-    const chatId = msg.chat.id;
     let help = 'Команды бота:\n\n';
     help += '/start — начать настройку\n';
     help += '/help — список команд\n';
@@ -273,12 +277,11 @@ bot.onText(/\/help/, (msg) => {
     help += '/off — выключить уведомления\n';
     help += '/on — включить уведомления';
     
-    bot.sendMessage(chatId, help);
+    bot.sendMessage(msg.chat.id, help);
 });
 
 // /info
 bot.onText(/\/info/, (msg) => {
-    const chatId = msg.chat.id;
     let info = 'ℹ️ Информация о боте:\n\n';
     info += 'Официальный бот-расписание намаза.\n\n';
     info += 'Вы можете:\n';
@@ -289,14 +292,14 @@ bot.onText(/\/info/, (msg) => {
     info += '— Узнать направление на Каабу\n\n';
     info += 'Используйте /help для списка команд.';
     
-    bot.sendMessage(chatId, info);
+    bot.sendMessage(msg.chat.id, info);
 });
 
 // /today
 bot.onText(/\/today/, async (msg) => {
     const chatId = msg.chat.id;
+    if (!isConfigured(chatId)) return bot.sendMessage(chatId, 'Сначала /start');
     const user = users[chatId];
-    if (!user || !user.lat) return bot.sendMessage(chatId, 'Сначала /start');
     const timings = await getPrayerTimes(user.lat, user.lon, user.method);
     if (timings) {
         bot.sendMessage(chatId, 'Сегодня (' + user.region + '):\n\nФаджр: ' + timings.Fajr + '\nЗухр: ' + timings.Dhuhr + '\nАср: ' + timings.Asr + '\nМагриб: ' + timings.Maghrib + '\nИша: ' + timings.Isha);
@@ -306,8 +309,8 @@ bot.onText(/\/today/, async (msg) => {
 // /tomorrow
 bot.onText(/\/tomorrow/, async (msg) => {
     const chatId = msg.chat.id;
+    if (!isConfigured(chatId)) return bot.sendMessage(chatId, 'Сначала /start');
     const user = users[chatId];
-    if (!user || !user.lat) return bot.sendMessage(chatId, 'Сначала /start');
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const timings = await getPrayerTimes(user.lat, user.lon, user.method, tomorrow);
@@ -319,8 +322,7 @@ bot.onText(/\/tomorrow/, async (msg) => {
 // /mark
 bot.onText(/\/mark/, (msg) => {
     const chatId = msg.chat.id;
-    const user = users[chatId];
-    if (!user || !user.lat) return bot.sendMessage(chatId, 'Сначала /start');
+    if (!isConfigured(chatId)) return bot.sendMessage(chatId, 'Сначала /start');
     
     let keyboard = [];
     Object.entries(prayerNames).forEach(([key, name]) => {
@@ -365,8 +367,8 @@ bot.onText(/\/qibla/, (msg) => {
 // /settings
 bot.onText(/\/settings/, (msg) => {
     const chatId = msg.chat.id;
+    if (!isConfigured(chatId)) return bot.sendMessage(chatId, 'Сначала /start');
     const user = users[chatId];
-    if (!user || !user.lat) return bot.sendMessage(chatId, 'Сначала /start');
     
     let keyboard = [];
     Object.entries(methods).forEach(([key, name]) => {
@@ -401,25 +403,19 @@ bot.onText(/\/region/, (msg) => {
 // /off
 bot.onText(/\/off/, (msg) => {
     const chatId = msg.chat.id;
-    if (users[chatId]) {
-        users[chatId].notifications = false;
-        saveUsers();
-        bot.sendMessage(chatId, 'Уведомления выключены');
-    } else {
-        bot.sendMessage(chatId, 'Сначала /start');
-    }
+    if (!isConfigured(chatId)) return bot.sendMessage(chatId, 'Сначала /start');
+    users[chatId].notifications = false;
+    saveUsers();
+    bot.sendMessage(chatId, 'Уведомления выключены');
 });
 
 // /on
 bot.onText(/\/on/, (msg) => {
     const chatId = msg.chat.id;
-    if (users[chatId]) {
-        users[chatId].notifications = true;
-        saveUsers();
-        bot.sendMessage(chatId, 'Уведомления включены');
-    } else {
-        bot.sendMessage(chatId, 'Сначала /start');
-    }
+    if (!isConfigured(chatId)) return bot.sendMessage(chatId, 'Сначала /start');
+    users[chatId].notifications = true;
+    saveUsers();
+    bot.sendMessage(chatId, 'Уведомления включены');
 });
 
 // Обработка callback
@@ -527,7 +523,7 @@ bot.on('message', async (msg) => {
 });
 
 Object.keys(users).forEach(chatId => {
-    if (users[chatId]?.step === 'done') setupScheduler(chatId);
+    if (isConfigured(chatId)) setupScheduler(chatId);
 });
 
 const server = http.createServer((req, res) => {
