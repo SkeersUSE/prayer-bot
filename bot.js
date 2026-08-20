@@ -149,23 +149,68 @@ async function getPrayerTimes(lat, lon, method = 16, date = new Date()) {
     }
 }
 
-// Сбор монет с фермы
+// Планировщик с проверкой часового пояса
+function setupScheduler(chatId) {
+    const user = users[chatId];
+    if (!user) return;
+    
+    // Получаем время намаза
+    getPrayerTimes(user.lat, user.lon, user.method).then(timings => {
+        if (!timings) return;
+        
+        const prayers = [
+            { name: 'Фаджр', time: timings.Fajr },
+            { name: 'Зухр', time: timings.Dhuhr },
+            { name: 'Аср', time: timings.Asr },
+            { name: 'Магриб', time: timings.Maghrib },
+            { name: 'Иша', time: timings.Isha }
+        ];
+        
+        // Удаляем старые расписания
+        if (user.scheduledJobs) {
+            user.scheduledJobs.forEach(job => job.cancel());
+        }
+        user.scheduledJobs = [];
+        
+        prayers.forEach(prayer => {
+            const [hours, minutes] = prayer.time.split(':').map(Number);
+            
+            // Планируем на каждый день
+            const job = schedule.scheduleJob({ hour: hours, minute: minutes }, () => {
+                if (users[chatId] && users[chatId].notifications) {
+                    bot.sendMessage(chatId, 'Время намаза: ' + prayer.name + ' (' + prayer.time + ')');
+                }
+            });
+            
+            user.scheduledJobs.push(job);
+        });
+        
+        saveUsers();
+    });
+}
+
+// Перепланирование каждые 12 часов
+setInterval(() => {
+    Object.keys(users).forEach(chatId => {
+        if (users[chatId] && users[chatId].step === 'done') {
+            setupScheduler(chatId);
+        }
+    });
+}, 12 * 60 * 60 * 1000);
+
 function collectFarm(chatId) {
     const user = users[chatId];
     if (!user?.pet) return;
     const pet = user.pet;
     const now = Date.now();
-    
     if (!pet.lastFarmCollect) {
         pet.lastFarmCollect = now;
         pet.coins += 3;
         saveUsers();
         return;
     }
-    
     const timeDiff = now - pet.lastFarmCollect;
     const collectsAvailable = Math.floor(timeDiff / (10 * 60 * 1000));
-    
     if (collectsAvailable >= 1) {
         const coinsGain = collectsAvailable * 3;
         pet.coins += coinsGain;
@@ -179,33 +224,28 @@ function collectFarm(chatId) {
     }
 }
 
-// Проверка тренировок (16 раз в 12 часов)
 function canTrain(chatId) {
     const user = users[chatId];
     if (!user?.pet) return { can: false, reason: 'Сначала создайте воина: /pet' };
     const pet = user.pet;
     const now = Date.now();
-    
     if (!pet.trainResetTime) {
         pet.trainResetTime = now;
         pet.trainCount = 0;
         saveUsers();
     }
-    
     const timeDiff = now - pet.trainResetTime;
     if (timeDiff >= 12 * 60 * 60 * 1000) {
         pet.trainResetTime = now;
         pet.trainCount = 0;
         saveUsers();
     }
-    
     if (pet.trainCount >= 16) {
         const nextReset = 12 * 60 * 60 * 1000 - timeDiff;
         const hours = Math.floor(nextReset / 3600000);
         const minutes = Math.ceil((nextReset % 3600000) / 60000);
         return { can: false, reason: 'Лимит тренировок исчерпан! Следующая через ' + hours + ' ч ' + minutes + ' мин.' };
     }
-    
     return { can: true };
 }
 
@@ -257,14 +297,13 @@ function showPet(chatId) {
     message += 'Защита: ' + pet.defense + '\n';
     message += 'Монеты: ' + pet.coins + '\n';
     message += 'Тренировки: ' + (pet.trainCount || 0) + '/16\n\n';
-    message += '/battle — сражаться с врагом\n/pvp — битва с игроком\n/train — тренироваться\n/heal — лечиться (5 монет)\n/farm — собрать монеты с фермы\n/rename — переименовать';
+    message += '/battle — сражаться с врагом\n/pvp @username — битва с игроком\n/train — тренироваться\n/heal — лечиться (5 монет)\n/farm — собрать монеты\n/rename — переименовать\n/setusername @username — установить username';
     bot.sendMessage(chatId, message);
 }
 
 // /farm
 bot.onText(/\/farm/, (msg) => {
-    const chatId = msg.chat.id;
-    collectFarm(chatId);
+    collectFarm(msg.chat.id);
 });
 
 // /battle
@@ -307,38 +346,104 @@ bot.onText(/\/battle/, (msg) => {
         pet.hp = pet.maxHp;
         pet.attack += 2;
         pet.defense += 1;
-        pet.coins += 10; // бонус за уровень
+        pet.coins += 10;
         battleLog += '\nПовышен уровень! Теперь ' + pet.level + ' уровень!\nБонус: +10 монет!\n';
     }
     saveUsers();
     bot.sendMessage(chatId, battleLog + '\nПобеда!\nОпыт: +' + expGain + '\nМонеты: +' + coinsGain);
 });
 
-// /pvp — битва с игроком
-bot.onText(/\/pvp/, (msg) => {
+// /setusername
+bot.onText(/\/setusername(?:\s+@?([a-zA-Z0-9_]+))?/, (msg, match) => {
+    const chatId = msg.chat.id;
+    const user = users[chatId];
+    if (!user) return bot.sendMessage(chatId, 'Сначала /start');
+    
+    const username = match[1];
+    if (!username) {
+        return bot.sendMessage(chatId, 'Используйте: /setusername @ваш_username');
+    }
+    
+    user.username = username;
+    saveUsers();
+    bot.sendMessage(chatId, 'Username установлен: @' + username);
+});
+
+// /pvp — только по @username
+bot.onText(/\/pvp(?:\s+@?([a-zA-Z0-9_]+))?/, (msg, match) => {
     const chatId = msg.chat.id;
     const user = users[chatId];
     if (!user?.pet) return bot.sendMessage(chatId, 'Сначала создайте воина: /pet');
     
-    // Список доступных игроков
-    const availablePlayers = Object.entries(users).filter(([id, u]) => u.pet && id !== chatId);
+    const targetUsername = match[1];
     
-    if (availablePlayers.length === 0) {
-        return bot.sendMessage(chatId, 'Нет доступных игроков для битвы.');
+    if (!targetUsername) {
+        return bot.sendMessage(chatId, 'Используйте: /pvp @username\n\nУзнать свой username: /status');
     }
     
-    let keyboard = [];
-    availablePlayers.forEach(([id, u]) => {
-        keyboard.push([u.pet.name + ' (Уровень ' + u.pet.level + ')']);
-    });
+    const targetEntry = Object.entries(users).find(([id, u]) => 
+        u.username === targetUsername && u.pet && id !== String(chatId)
+    );
     
-    bot.sendMessage(chatId, 'Выберите противника:', {
-        reply_markup: { keyboard, resize_keyboard: true, one_time_keyboard: true }
-    });
+    if (!targetEntry) {
+        return bot.sendMessage(chatId, 'Игрок @' + targetUsername + ' не найден или у него нет воина.');
+    }
     
-    user.choosingPvp = true;
-    saveUsers();
+    startPvpBattle(chatId, targetEntry[0]);
 });
+
+function startPvpBattle(attackerId, defenderId) {
+    const attacker = users[attackerId];
+    const defender = users[defenderId];
+    
+    if (!attacker?.pet || !defender?.pet) return;
+    
+    const myPet = attacker.pet;
+    const enemyPet = defender.pet;
+    
+    let myHp = myPet.hp;
+    let enemyHp = enemyPet.hp;
+    let battleLog = 'PvP битва: ' + myPet.name + ' vs ' + enemyPet.name + '!\n\n';
+    
+    while (myHp > 0 && enemyHp > 0) {
+        const myDamage = Math.max(1, myPet.attack - Math.floor(enemyPet.defense / 2) + Math.floor(Math.random() * 5));
+        enemyHp -= myDamage;
+        battleLog += 'Вы нанесли ' + myDamage + ' урона. У ' + enemyPet.name + ' ' + Math.max(0, enemyHp) + ' HP\n';
+        if (enemyHp <= 0) break;
+        const enemyDamage = Math.max(1, enemyPet.attack - Math.floor(myPet.defense / 2) + Math.floor(Math.random() * 5));
+        myHp -= enemyDamage;
+        battleLog += enemyPet.name + ' нанёс ' + enemyDamage + ' урона. У вас ' + Math.max(0, myHp) + ' HP\n';
+    }
+    
+    if (myHp <= 0) {
+        myPet.hp = Math.floor(myPet.maxHp / 2);
+        saveUsers();
+        bot.sendMessage(attackerId, battleLog + '\nВы проиграли!');
+        bot.sendMessage(defenderId, 'Вас атаковал ' + myPet.name + '! Вы победили!');
+        return;
+    }
+    
+    myPet.hp = myHp;
+    const expGain = 15 + enemyPet.level * 5;
+    const coinsGain = 10 + enemyPet.level * 3;
+    myPet.exp += expGain;
+    myPet.coins += coinsGain;
+    
+    if (myPet.exp >= myPet.level * 100) {
+        myPet.exp -= myPet.level * 100;
+        myPet.level++;
+        myPet.maxHp += 10;
+        myPet.hp = myPet.maxHp;
+        myPet.attack += 2;
+        myPet.defense += 1;
+        myPet.coins += 10;
+        battleLog += '\nПовышен уровень! Теперь ' + myPet.level + ' уровень!\nБонус: +10 монет!\n';
+    }
+    
+    saveUsers();
+    bot.sendMessage(defenderId, 'Вас победил ' + myPet.name + '!');
+    bot.sendMessage(attackerId, battleLog + '\nПобеда!\nОпыт: +' + expGain + '\nМонеты: +' + coinsGain);
+}
 
 // /train
 bot.onText(/\/train/, (msg) => {
@@ -400,7 +505,6 @@ bot.on('message', async (msg) => {
     if (!text || text.startsWith('/')) return;
     const user = users[chatId];
     
-    // Выбор региона
     if (regions[text] && !user?.step) {
         users[chatId] = {
             region: text,
@@ -421,7 +525,6 @@ bot.on('message', async (msg) => {
         return;
     }
     
-    // Выбор метода
     if (user?.step === 'method') {
         const methodMatch = Object.entries(methods).find(([key, name]) => text.startsWith(name));
         if (methodMatch) {
@@ -440,7 +543,6 @@ bot.on('message', async (msg) => {
         return;
     }
     
-    // Создание питомца — выбор класса
     if (user?.creatingPet) {
         const classMatch = Object.entries(classes).find(([key, cls]) => text.startsWith(cls.name));
         if (classMatch) {
@@ -456,7 +558,6 @@ bot.on('message', async (msg) => {
         return;
     }
     
-    // Ввод имени питомца
     if (user?.creatingPetName) {
         user.pet = {
             name: text,
@@ -481,64 +582,6 @@ bot.on('message', async (msg) => {
         return;
     }
     
-    // Выбор противника для PvP
-    if (user?.choosingPvp) {
-        const targetEntry = Object.entries(users).find(([id, u]) => u.pet && u.pet.name === text && id !== chatId);
-        if (targetEntry) {
-            user.choosingPvp = false;
-            saveUsers();
-            
-            const [targetId, targetUser] = targetEntry;
-            const myPet = user.pet;
-            const enemyPet = targetUser.pet;
-            
-            let myHp = myPet.hp;
-            let enemyHp = enemyPet.hp;
-            let battleLog = 'PvP битва: ' + myPet.name + ' vs ' + enemyPet.name + '!\n\n';
-            
-            while (myHp > 0 && enemyHp > 0) {
-                const myDamage = Math.max(1, myPet.attack - Math.floor(enemyPet.defense / 2) + Math.floor(Math.random() * 5));
-                enemyHp -= myDamage;
-                battleLog += 'Вы нанесли ' + myDamage + ' урона. У ' + enemyPet.name + ' ' + Math.max(0, enemyHp) + ' HP\n';
-                if (enemyHp <= 0) break;
-                const enemyDamage = Math.max(1, enemyPet.attack - Math.floor(myPet.defense / 2) + Math.floor(Math.random() * 5));
-                myHp -= enemyDamage;
-                battleLog += enemyPet.name + ' нанёс ' + enemyDamage + ' урона. У вас ' + Math.max(0, myHp) + ' HP\n';
-            }
-            
-            if (myHp <= 0) {
-                myPet.hp = Math.floor(myPet.maxHp / 2);
-                saveUsers();
-                return bot.sendMessage(chatId, battleLog + '\nВы проиграли!');
-            }
-            
-            myPet.hp = myHp;
-            const expGain = 15 + enemyPet.level * 5;
-            const coinsGain = 10 + enemyPet.level * 3;
-            myPet.exp += expGain;
-            myPet.coins += coinsGain;
-            
-            if (myPet.exp >= myPet.level * 100) {
-                myPet.exp -= myPet.level * 100;
-                myPet.level++;
-                myPet.maxHp += 10;
-                myPet.hp = myPet.maxHp;
-                myPet.attack += 2;
-                myPet.defense += 1;
-                myPet.coins += 10;
-                battleLog += '\nПовышен уровень! Теперь ' + myPet.level + ' уровень!\nБонус: +10 монет!\n';
-            }
-            
-            saveUsers();
-            
-            // Уведомляем противника
-            bot.sendMessage(targetId, 'Вас победил ' + myPet.name + '!');
-            
-            bot.sendMessage(chatId, battleLog + '\nПобеда!\nОпыт: +' + expGain + '\nМонеты: +' + coinsGain);
-        }
-    }
-    
-    // Переименование
     if (user?.renamingPet && user.pet) {
         user.pet.name = text;
         user.renamingPet = false;
@@ -552,7 +595,7 @@ bot.onText(/\/status/, (msg) => {
     const chatId = msg.chat.id;
     const user = users[chatId];
     if (!user) return bot.sendMessage(chatId, 'Сначала /start');
-    bot.sendMessage(chatId, 'Регион: ' + user.region + '\nМетод: ' + (methods[user.method] || user.method) + '\nУведомления: ' + (user.notifications ? 'включены' : 'выключены') + (user.pet ? '\nВоин: ' + user.pet.name : ''));
+    bot.sendMessage(chatId, 'Регион: ' + user.region + '\nМетод: ' + (methods[user.method] || user.method) + '\nУведомления: ' + (user.notifications ? 'включены' : 'выключены') + (user.pet ? '\nВоин: ' + user.pet.name : '') + (user.username ? '\nUsername: @' + user.username : '\nUsername не установлен'));
 });
 
 // /today
@@ -589,8 +632,7 @@ bot.onText(/\/off/, (msg) => {
     }
 });
 
-// /on
-bot.onText(/\/on/, (msg) => {
+// /onbot.onText(/\/on/, (msg) => {
     const chatId = msg.chat.id;
     if (users[chatId]) {
         users[chatId].notifications = true;
@@ -599,30 +641,11 @@ bot.onText(/\/on/, (msg) => {
     }
 });
 
-function setupScheduler(chatId) {
-    const user = users[chatId];
-    if (!user) return;
-    getPrayerTimes(user.lat, user.lon, user.method).then(timings => {
-        if (!timings) return;
-        const prayers = [
-            { name: 'Фаджр', time: timings.Fajr },
-            { name: 'Зухр', time: timings.Dhuhr },
-            { name: 'Аср', time: timings.Asr },
-            { name: 'Магриб', time: timings.Maghrib },
-            { name: 'Иша', time: timings.Isha }
-        ];
-        prayers.forEach(prayer => {
-            const [hours, minutes] = prayer.time.split(':').map(Number);
-            schedule.scheduleJob({ hour: hours, minute: minutes }, () => {
-                if (users[chatId] && users[chatId].notifications) {
-                    bot.sendMessage(chatId, 'Время намаза: ' + prayer.name + ' (' + prayer.time + ')');
-                }
-            });
-        });
-    });
-}
-
-Object.keys(users).forEach(chatId => setupScheduler(chatId));
+Object.keys(users).forEach(chatId => {
+    if (users[chatId] && users[chatId].step === 'done') {
+        setupScheduler(chatId);
+    }
+});
 
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
