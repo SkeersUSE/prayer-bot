@@ -189,9 +189,31 @@ function resetDailyStats() {
 setInterval(resetDailyStats, 60 * 60 * 1000);
 resetDailyStats();
 
+// Проверка, настроен ли пользователь (работает со старыми данными)
+function isConfigured(chatId) {
+    const user = users[chatId];
+    if (!user) return false;
+    
+    // Если есть lat и lon — настроен
+    if (user.lat && user.lon) return true;
+    
+    // Если есть region — восстанавливаем lat и lon
+    if (user.region && regions[user.region]) {
+        user.lat = regions[user.region].lat;
+        user.lon = regions[user.region].lon;
+        if (!user.method) user.method = 16;
+        if (!user.stats) user.stats = { prayersToday: 0, totalPrayers: 0, lastReset: new Date().toDateString(), markedPrayers: {} };
+        user.step = 'done';
+        saveUsers();
+        return true;
+    }
+    
+    return false;
+}
+
 function setupScheduler(chatId) {
     const user = users[chatId];
-    if (!user || user.step !== 'done' || !user.lat) return;
+    if (!isConfigured(chatId)) return;
     
     getPrayerTimes(user.lat, user.lon, user.method).then(timings => {
         if (!timings) return;
@@ -225,14 +247,9 @@ function setupScheduler(chatId) {
 
 setInterval(() => {
     Object.keys(users).forEach(chatId => {
-        if (users[chatId]?.step === 'done') setupScheduler(chatId);
+        if (isConfigured(chatId)) setupScheduler(chatId);
     });
 }, 12 * 60 * 60 * 1000);
-
-// Проверка, настроен ли пользователь
-function isConfigured(chatId) {
-    return users[chatId] && users[chatId].step === 'done' && users[chatId].lat;
-}
 
 // /start
 bot.onText(/\/start/, (msg) => {
@@ -282,8 +299,8 @@ bot.onText(/\/help/, (msg) => {
 
 // /info
 bot.onText(/\/info/, (msg) => {
-    let info = 'ℹ️ Информация о боте:\n\n';
-    info += 'Официальный бот-расписание намаза.\n\n';
+    let info = 'Информация о боте:\n\n';
+    info += 'Официальный бот-расписание Намаза.\n\n';
     info += 'Вы можете:\n';
     info += '— Отслеживать время намазов\n';
     info += '— Отмечать совершённые намазы\n';
@@ -361,7 +378,7 @@ bot.onText(/\/stats/, (msg) => {
 
 // /qibla
 bot.onText(/\/qibla/, (msg) => {
-    bot.sendMessage(msg.chat.id, 'Отправьте вашу геолокацию (📍), чтобы узнать направление на Каабу.');
+    bot.sendMessage(msg.chat.id, 'Отправьте вашу геолокацию, чтобы узнать направление на Каабу.');
 });
 
 // /settings
@@ -522,6 +539,7 @@ bot.on('message', async (msg) => {
     }
 });
 
+// Запуск планировщиков
 Object.keys(users).forEach(chatId => {
     if (isConfigured(chatId)) setupScheduler(chatId);
 });
