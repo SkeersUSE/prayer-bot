@@ -251,7 +251,7 @@ bot.onText(/\/start/, (msg) => {
         keyboard.push(regionNames.slice(i, i + 2));
     }
     
-    bot.sendMessage(chatId, 'Ассаляму алейкум!\n\nВыберите ваш регион (или введите название):', {
+    bot.sendMessage(chatId, 'Ассаляму алейкум!\n\nВыберите ваш регион:', {
         reply_markup: { keyboard, resize_keyboard: true, one_time_keyboard: true }
     });
 });
@@ -262,11 +262,12 @@ bot.onText(/\/help/, (msg) => {
     let help = 'Команды бота:\n\n';
     help += '/start — начать настройку\n';
     help += '/help — список команд\n';
+    help += '/info — информация о боте\n';
     help += '/today — расписание на сегодня\n';
     help += '/tomorrow — расписание на завтра\n';
     help += '/mark — отметить совершённый намаз\n';
     help += '/stats — статистика намазов\n';
-    help += '/qibla — направление на Каабу (отправьте геолокацию)\n';
+    help += '/qibla — направление на Каабу\n';
     help += '/settings — сменить метод расчёта\n';
     help += '/region — сменить регион\n';
     help += '/off — выключить уведомления\n';
@@ -275,11 +276,27 @@ bot.onText(/\/help/, (msg) => {
     bot.sendMessage(chatId, help);
 });
 
+// /info
+bot.onText(/\/info/, (msg) => {
+    const chatId = msg.chat.id;
+    let info = 'ℹ️ Информация о боте:\n\n';
+    info += 'Официальный бот-расписание намаза.\n\n';
+    info += 'Вы можете:\n';
+    info += '— Отслеживать время намазов\n';
+    info += '— Отмечать совершённые намазы\n';
+    info += '— Получать напоминания\n';
+    info += '— Выбирать регион и метод расчёта\n';
+    info += '— Узнать направление на Каабу\n\n';
+    info += 'Используйте /help для списка команд.';
+    
+    bot.sendMessage(chatId, info);
+});
+
 // /today
 bot.onText(/\/today/, async (msg) => {
     const chatId = msg.chat.id;
     const user = users[chatId];
-    if (!user?.lat) return bot.sendMessage(chatId, 'Сначала /start');
+    if (!user || !user.lat) return bot.sendMessage(chatId, 'Сначала /start');
     const timings = await getPrayerTimes(user.lat, user.lon, user.method);
     if (timings) {
         bot.sendMessage(chatId, 'Сегодня (' + user.region + '):\n\nФаджр: ' + timings.Fajr + '\nЗухр: ' + timings.Dhuhr + '\nАср: ' + timings.Asr + '\nМагриб: ' + timings.Maghrib + '\nИша: ' + timings.Isha);
@@ -290,7 +307,7 @@ bot.onText(/\/today/, async (msg) => {
 bot.onText(/\/tomorrow/, async (msg) => {
     const chatId = msg.chat.id;
     const user = users[chatId];
-    if (!user?.lat) return bot.sendMessage(chatId, 'Сначала /start');
+    if (!user || !user.lat) return bot.sendMessage(chatId, 'Сначала /start');
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const timings = await getPrayerTimes(user.lat, user.lon, user.method, tomorrow);
@@ -303,7 +320,7 @@ bot.onText(/\/tomorrow/, async (msg) => {
 bot.onText(/\/mark/, (msg) => {
     const chatId = msg.chat.id;
     const user = users[chatId];
-    if (!user?.lat) return bot.sendMessage(chatId, 'Сначала /start');
+    if (!user || !user.lat) return bot.sendMessage(chatId, 'Сначала /start');
     
     let keyboard = [];
     Object.entries(prayerNames).forEach(([key, name]) => {
@@ -349,7 +366,7 @@ bot.onText(/\/qibla/, (msg) => {
 bot.onText(/\/settings/, (msg) => {
     const chatId = msg.chat.id;
     const user = users[chatId];
-    if (!user) return bot.sendMessage(chatId, 'Сначала /start');
+    if (!user || !user.lat) return bot.sendMessage(chatId, 'Сначала /start');
     
     let keyboard = [];
     Object.entries(methods).forEach(([key, name]) => {
@@ -388,6 +405,8 @@ bot.onText(/\/off/, (msg) => {
         users[chatId].notifications = false;
         saveUsers();
         bot.sendMessage(chatId, 'Уведомления выключены');
+    } else {
+        bot.sendMessage(chatId, 'Сначала /start');
     }
 });
 
@@ -398,6 +417,8 @@ bot.onText(/\/on/, (msg) => {
         users[chatId].notifications = true;
         saveUsers();
         bot.sendMessage(chatId, 'Уведомления включены');
+    } else {
+        bot.sendMessage(chatId, 'Сначала /start');
     }
 });
 
