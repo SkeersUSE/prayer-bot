@@ -34,7 +34,6 @@ function saveUsers() {
     fs.writeFileSync(DATA_FILE, JSON.stringify(clean, null, 2));
 }
 
-// 89 регионов
 const regions = {
     'Москва': { lat: 55.7558, lon: 37.6173 },
     'Санкт-Петербург': { lat: 59.9343, lon: 30.3351 },
@@ -127,7 +126,6 @@ const regions = {
     'Аргун': { lat: 43.3000, lon: 45.8667 }
 };
 
-// 16 методов
 const methods = {
     '1': 'University of Islamic Sciences, Karachi',
     '2': 'ISNA',
@@ -382,3 +380,5 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => console.log('Сервер на порту ' + PORT));
 
 console.log('Бот запущен!');
+console.log('Регионов:', Object.keys(regions).length);
+console.log('Методов:', Object.keys(methods).length);
